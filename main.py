@@ -172,6 +172,7 @@ def run():
 
     plt.imshow(board.b)
     plt.title(datetime.today().strftime('%Y-%m-%d'))
+    plt.savefig(datetime.today().strftime('%Y-%m-%d'))
     plt.show()
 
 if __name__ == '__main__':
