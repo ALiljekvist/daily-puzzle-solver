@@ -1,6 +1,6 @@
+from datetime import datetime
 import numpy as np
 import matplotlib.pyplot as plt
-from datetime import datetime
 
 PIECES = [
     '100.100.111',
@@ -89,6 +89,8 @@ class Board:
         for x, y in exceptions:
             self.b[x, y] = -1
         self.used = [False for _ in range(10)]
+        self.flipable = [False for _ in range(10)]
+        self.flipable[7] = True
 
     def place(self, x: int, y: int, p: np.array) -> bool:
         sh = p.shape
@@ -129,31 +131,43 @@ class Board:
             x += 1
         return x, y
 
+    def test_placement(self, pieces, piece, i, x, y) -> bool:
+        p_i = piece.copy()
+        # Add to limit retries with same piece
+        tried = []
+        for _ in range(4):
+            p_i = rot90(p_i)
+            for t in tried:
+                if t.shape == p_i.shape and (t == p_i).all():
+                    return False
+            tried.append(p_i.copy())
+            off = 0
+            while p_i[0, off] == 0:
+                off += 1
+            if self.place(x, y-off, p_i):
+                self.used[i] = True
+                nx, ny = self.find_next_spot(x, y)
+                if self.solve(pieces, nx, ny):
+                    return True
+                self.remove(x, y-off, p_i)
+                self.used[i] = False
+        return False
+
     def Solve(self, pieces) -> bool:
-        return self.solve(pieces, 0, 0)
-            
+        x, y = self.find_next_spot(0, 0)
+        return self.solve(pieces, x, y)
+
     def solve(self, pieces, x ,y) -> bool:
         if all(self.used):
             return True
         for i, p in enumerate(pieces):
             if self.used[i]:
                 continue
-            p_i = p.copy()
-            # Add to limit retries with same piece
-            # tried = []
-            for _ in range(4):
-                p_i = rot90(p_i)
-                off = 0
-                while p_i[0, off] == 0:
-                    off += 1
-                if self.place(x, y-off, p_i):
-                    self.used[i] = True
-                    nx, ny = self.find_next_spot(x, y)
-                    if self.solve(pieces, nx, ny):
-                        return True
-                    self.remove(x, y-off, p_i)
-                    self.used[i] = False
-        # print("exiting", depth)
+            if self.test_placement(pieces, p, i, x, y):
+                return True
+            if self.flipable[i]:
+                if self.test_placement(pieces, flip(p), i, x, y):
+                    return True
         return False
 
 def rot90(p: np.ndarray) -> np.ndarray:
@@ -163,17 +177,32 @@ def rot90(p: np.ndarray) -> np.ndarray:
             new_p[p.shape[1]-1-y,x] = p[x,y]
     return new_p
 
-def run():
-    today = datetime.today()
-    pieces = create_pieces()
-    board = Board([MONTHS[today.month-1], DAYS[today.day-1], WEEKDAYS[today.weekday()]])
+def flip(p: np.ndarray) -> np.ndarray:
+    new_p = p.copy()
+    shape = p.shape
+    for x in range(shape[0]):
+        for y in range(shape[1]):
+            new_p[x, y] = p[x, shape[1]-1-y]
+    return new_p
 
-    board.Solve(pieces)
+def run(date: datetime, month=-1, day=-1, weekday=-1, plot=True) -> bool:
+    pieces = create_pieces()
+
+    use_month = date.month-1 if month == -1 else month
+    use_day = date.day-1 if day == -1 else day
+    use_weekday = date.weekday() if weekday == -1 else weekday
+
+    board = Board([MONTHS[use_month], DAYS[use_day], WEEKDAYS[use_weekday]])
+    solved = board.Solve(pieces)
+    if not plot:
+        return solved
 
     plt.imshow(board.b)
-    plt.title(datetime.today().strftime('%Y-%m-%d'))
-    plt.savefig(datetime.today().strftime('%Y-%m-%d'))
+    plt.title(date.strftime('%Y-%m-%d'))
+    plt.savefig(date.strftime('%Y-%m-%d'))
     plt.show()
+    return solved
 
 if __name__ == '__main__':
-    run()
+    today = datetime.today()
+    run(today)
